@@ -1,8 +1,6 @@
 package circuitbreaker_test
 
 import (
-	"sync"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -18,7 +16,7 @@ var _ = Describe("circuitbreaker", func() {
 
 	Context("New()", func() {
 		It("returns a circuit breaker in closed state", func() {
-			Expect(cb.State()).To(Equal(CLOSED))
+			Expect(cb.State()).To(Equal(Closed))
 			Expect(cb.Calls()).To(Equal(0))
 			Expect(cb.Fails()).To(Equal(0))
 		})
@@ -29,7 +27,7 @@ var _ = Describe("circuitbreaker", func() {
 			})
 
 			It("returns a circuit breaker in closed state", func() {
-				Expect(cb.State()).To(Equal(CLOSED))
+				Expect(cb.State()).To(Equal(Closed))
 				Expect(cb.Calls()).To(Equal(0))
 				Expect(cb.Fails()).To(Equal(0))
 			})
@@ -40,37 +38,6 @@ var _ = Describe("circuitbreaker", func() {
 
 		// Test the CircuitBreaker implementation.
 		Context("CircuitBreaker", func() {
-			Context("State()", func() {
-				It("is concurrently safe", func() {
-					var wg sync.WaitGroup
-
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-
-						for i := 0; i < 50; i++ {
-							cb.State()
-						}
-					}()
-
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
-
-						for i := 0; i < 50; i++ {
-							if i%2 == 0 {
-								cb.Close()
-								continue
-							}
-
-							cb.Open()
-						}
-					}()
-
-					wg.Wait()
-				})
-			})
-
 			Context("Calls()", func() {
 				It("always returns zero", func() {
 					Expect(cb.Calls()).To(Equal(0))
@@ -96,30 +63,13 @@ var _ = Describe("circuitbreaker", func() {
 				Context("when in closed state", func() {
 					It("changes to open state", func() {
 						cb.Open()
-						Expect(cb.State()).To(Equal(OPEN))
+						Expect(cb.State()).To(Equal(Open))
 					})
 				})
 
-				Context("when in open state", func() {})
+				// TODO: Context("when in open state", func() {})
 
-				Context("when in half open state", func() {})
-			})
-
-			Context("Close()", func() {
-				Context("when in open state", func() {
-					BeforeEach(func() {
-						cb.Open()
-					})
-
-					It("changes to closed state", func() {
-						cb.Close()
-						Expect(cb.State()).To(Equal(CLOSED))
-					})
-				})
-
-				Context("when in closed state", func() {})
-
-				Context("when in half open state", func() {})
+				// TODO: Context("when in a half open state", func() {})
 			})
 
 			Context("Call()", func() {
@@ -195,7 +145,7 @@ var _ = Describe("circuitbreaker", func() {
 							})
 
 							It("changes state to open", func() {
-								Expect(cb.State()).To(Equal(OPEN))
+								Expect(cb.State()).To(Equal(Open))
 							})
 						})
 					})
@@ -211,10 +161,14 @@ var _ = Describe("circuitbreaker", func() {
 							Expect(cb.Calls()).To(Equal(before))
 						})
 
-						It("all calls should return nil", func() {
-							Expect(cb.Call()).To(BeNil())
+						It("all calls should return tripped error", func() {
+							_, err := cb.Call()
+							Expect(err).NotTo(BeNil())
+							Expect(err).To(Equal(TrippedError))
 						})
 					})
+
+					// TODO: Context("while in a half open state", func() {})
 				})
 			})
 		})

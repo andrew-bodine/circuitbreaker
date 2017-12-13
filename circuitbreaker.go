@@ -1,7 +1,12 @@
 package circuitbreaker
 
+import (
+	"time"
+)
+
 const (
 	MAXFAILS = 5
+	TIMEOUT = time.Second
 )
 
 type CircuitBreaker interface {
@@ -20,9 +25,6 @@ type CircuitBreaker interface {
 	// Forces the circuit breaker into open state.
 	Open()
 
-	// Forces the circuit breaker into closed state.
-	Close()
-
 	// Calls the wrapped function when in a closed state and
 	// returns the result.
 	Call(...interface{}) (interface{}, error)
@@ -33,15 +35,16 @@ func New(c Caller) CircuitBreaker {
 		state:  make(chan State, 1),
 		calls:	make(chan int, 1),
 		fails:	make(chan int, 1),
-		err:	make(chan error, 1),
+		timer:	make(chan *time.Timer, 1),
 		caller: make(chan Caller, 1),
 	}
 
-	cb.state <- CLOSED
+	cb.state <- Closed
 
 	cb.calls <- 0
 	cb.fails <- 0
-	cb.err <- nil
+
+	cb.timer <- nil
 
 	cb.caller <- c
 
@@ -53,7 +56,8 @@ type circuitBreaker struct {
 
 	calls	chan int
 	fails	chan int
-	err		chan error
+
+	timer	chan *time.Timer
 
 	caller	chan Caller
 }
@@ -84,23 +88,19 @@ func (cb *circuitBreaker) Fails() int {
 
 // Implement the CircuitBreaker interface.
 func (cb *circuitBreaker) Open() {
-	<-cb.state
-	cb.state <- OPEN
-}
+	s := <-cb.state
+	cb.state <- Open
 
-// Implement the CircuitBreaker interface.
-func (cb *circuitBreaker) Close() {
-	<-cb.state
-	cb.state <- CLOSED
+	if s != Open {
+		<- cb.timer
+		cb.timer <- time.NewTimer(TIMEOUT)
+	}
 }
 
 // Implement the CircuitBreaker interface.
 func (cb *circuitBreaker) Call(args ...interface{}) (interface{}, error) {
-	if cb.State() == OPEN {
-		err := <- cb.err
-		cb.err <- err
-
-		return nil, err
+	if cb.State() == Open {
+		return nil, TrippedError
 	}
 
 	c := <-cb.caller
@@ -109,14 +109,12 @@ func (cb *circuitBreaker) Call(args ...interface{}) (interface{}, error) {
 		return nil, nil
 	}
 
+	// Increment call count.
 	cs := <- cb.calls
 	cb.calls <- cs + 1
 
 	r, err := c.Call(args...)
 	if err != nil {
-		<- cb.err
-		cb.err <- err
-
 		n := <- cb.fails
 		n += 1
 		cb.fails <- n
@@ -125,6 +123,9 @@ func (cb *circuitBreaker) Call(args ...interface{}) (interface{}, error) {
 			cb.Open()
 		}
 	} else {
+
+		// If there was a successful call, then set fail
+		// count to zero.
 		<- cb.fails
 		cb.fails <- 0
 	}
