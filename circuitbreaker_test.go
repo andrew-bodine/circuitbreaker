@@ -13,12 +13,22 @@ var _ = Describe("circuitbreaker", func() {
     var cb CircuitBreaker
 
     BeforeEach(func() {
-        cb = New()
+        cb = New(nil)
     })
 
     Context("New()", func() {
         It("returns a circuit breaker in closed state", func() {
             Expect(cb.State()).To(Equal(CLOSED))
+        })
+
+        Context("when provided an actual function", func() {
+            BeforeEach(func() {
+                cb = New(&MockCaller{})
+            })
+
+            It("returns a circuit breaker in closed state", func() {
+                Expect(cb.State()).To(Equal(CLOSED))
+            })
         })
     })
 
@@ -85,6 +95,35 @@ var _ = Describe("circuitbreaker", func() {
                 Context("when in closed state", func() {})
 
                 Context("when in half open state", func() {})
+            })
+
+            Context("Call()", func() {
+                Context("with a nil caller", func() {
+                    It("returns nil", func() {
+                        Expect(cb.Call()).To(BeNil())
+                    })
+                })
+
+                Context("with a valid caller", func() {
+                    BeforeEach(func() {
+                        cb = New(&MockCaller{})
+                    })
+
+                    It("returns the output", func() {
+                        succeeded := false
+
+                        for !succeeded {
+                            val := cb.Call()
+
+                            if val != nil {
+                                succeeded = true
+                                break
+                            }
+                        }
+
+                        Expect(succeeded).To(Equal(true))
+                    })
+                })
             })
         })
     })
