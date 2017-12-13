@@ -1,0 +1,17 @@
+branches:
+  only:
+    - master
+
+language: go
+
+before_install:
+  - go get github.com/onsi/ginkgo/ginkgo
+  - go get github.com/onsi/gomega
+
+# For now, when TravisCI runs we want it to run all available tests via ginkgo.
+# Also, have ginkgo return coverage reports for each package.
+script:
+  - gingko --race --cover
+
+# after_success:
+#   -
