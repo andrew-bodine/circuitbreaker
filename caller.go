@@ -8,7 +8,7 @@ type Caller interface {
 	// Implement Call so the circuit breaker has an actual operation
 	// to run, this is also how you will receive any return values
 	// from said operation.
-	Call(...interface{}) interface{}
+	Call(...interface{}) (interface{}, error)
 
 	// Implement OnOpen if you want to be notified when the circuit
 	// breaker state changes to open.

@@ -19,6 +19,8 @@ var _ = Describe("circuitbreaker", func() {
 	Context("New()", func() {
 		It("returns a circuit breaker in closed state", func() {
 			Expect(cb.State()).To(Equal(CLOSED))
+			Expect(cb.Calls()).To(Equal(0))
+			Expect(cb.Fails()).To(Equal(0))
 		})
 
 		Context("when provided an actual function", func() {
@@ -28,6 +30,8 @@ var _ = Describe("circuitbreaker", func() {
 
 			It("returns a circuit breaker in closed state", func() {
 				Expect(cb.State()).To(Equal(CLOSED))
+				Expect(cb.Calls()).To(Equal(0))
+				Expect(cb.Fails()).To(Equal(0))
 			})
 		})
 	})
@@ -121,7 +125,9 @@ var _ = Describe("circuitbreaker", func() {
 			Context("Call()", func() {
 				Context("with a nil caller", func() {
 					It("returns nil", func() {
-						Expect(cb.Call()).To(BeNil())
+						r, err := cb.Call()
+						Expect(r).To(BeNil())
+						Expect(err).To(BeNil())
 					})
 				})
 
@@ -144,15 +150,54 @@ var _ = Describe("circuitbreaker", func() {
 						succeeded := false
 
 						for !succeeded {
-							val := cb.Call()
+							val, err := cb.Call()
 
-							if val != nil {
+							if err == nil {
+								Expect(val).NotTo(BeNil())
 								succeeded = true
 								break
 							}
 						}
+					})
 
-						Expect(succeeded).To(Equal(true))
+					Context("when there is a failure", func() {
+						BeforeEach(func() {
+							failed := false
+
+							for !failed {
+								_, err := cb.Call()
+
+								if err != nil {
+									failed = true
+								}
+							}
+						})
+
+						It("increments the fail count", func() {
+							Expect(cb.Fails()).To(Equal(1))
+						})
+
+						Context("then a success before fail threshold", func() {
+							It("sets fail count to zero", func() {
+
+								// Our MockCaller will succeed if we tell it to.
+								_, err := cb.Call(true)
+								Expect(err).To(BeNil())
+								Expect(cb.Fails()).To(Equal(0))
+							})
+						})
+
+						Context("and fail threshold is reached", func() {
+							BeforeEach(func() {
+								for cb.Fails() < MAXFAILS {
+									cb.Call()
+								}
+							})
+
+							It("changes state to open", func() {
+								Expect(cb.State()).To(Equal(OPEN))
+							})
+						})
 					})
 
 					Context("while in an open state", func() {

@@ -1,6 +1,7 @@
 package circuitbreaker_test
 
 import (
+	"errors"
 	"math/rand"
 	"time"
 
@@ -13,19 +14,29 @@ import (
 // This function is meant to work most of the time, but it will randomly
 // return a nil after a random timeout to simulate a problem one might
 // have doing something like a network operation.
-func faulty() interface{} {
+func faulty(args ...interface{}) (interface{}, error) {
 	s := rand.NewSource(time.Now().UnixNano())
 	r := rand.New(s)
 
-	chaos := r.Intn(1024)
-	if chaos < 1 {
-		t := time.NewTimer(time.Second)
-		<-t.C
+	chaos := r.Intn(10)
 
-		return nil
+	succeedRegardless := false
+	if len(args) > 0 {
+		val, ok := args[0].(bool)
+
+		if ok {
+			succeedRegardless = val
+		}
 	}
 
-	return chaos
+	if chaos < 5 && !succeedRegardless {
+		t := time.NewTimer(time.Millisecond)
+		<-t.C
+
+		return nil, errors.New("Weird error happened while trying to faulty()")
+	}
+
+	return chaos, nil
 }
 
 // MockCaller is an example caller implementation to demonstrate
@@ -33,8 +44,8 @@ func faulty() interface{} {
 type MockCaller struct{}
 
 // Implement the circuitbreaker.Caller interface.
-func (m *MockCaller) Call(args ...interface{}) interface{} {
-	return faulty()
+func (m *MockCaller) Call(args ...interface{}) (interface{}, error) {
+	return faulty(args...)
 }
 
 // Implement the circuitbreaker.Caller interface.
@@ -56,25 +67,41 @@ type Mock struct {
 // This demonstrates how existing logic will simply utilize the
 // circuit breaker in place of the wrapped method.
 func (m *Mock) eventuallyCallsFaulty() interface{} {
-	return m.faulty.Call()
+	result, err := m.faulty.Call()
+
+	// Circuit breaker is tripped, if this is the first trip then we just
+	// started failing fast, otherwise this was fail fast.
+	if err != nil {
+		return err
+	}
+
+	return result
 }
 
 var _ = Describe("circuitbreaker", func() {
 	Context("faulty()", func() {
+		Context("when told to succeed", func() {
+			It("returns success", func() {
+				r, err := faulty(true)
+				Expect(err).To(BeNil())
+				Expect(r).NotTo(BeNil())
+			})
+		})
+
 		Context("over many calls", func() {
 			It("will succeed and fail at least once", func() {
 				succeeded := false
 				failed := false
 
 				for !succeeded || !failed {
-					val := faulty()
+					_, err := faulty()
 
-					if val != nil {
-						succeeded = true
+					if err != nil {
+						failed = true
 						continue
 					}
 
-					failed = true
+					succeeded = true
 				}
 
 				Expect(succeeded).To(Equal(true))
