@@ -9,12 +9,4 @@ type Caller interface {
 	// to run, this is also how you will receive any return values
 	// from said operation.
 	Call(...interface{}) (interface{}, error)
-
-	// Implement OnOpen if you want to be notified when the circuit
-	// breaker state changes to open.
-	OnOpen()
-
-	// Implement OnClose if you want to be notified when the circuit
-	// breaker state changes to closed.
-	OnClose()
 }

@@ -48,12 +48,6 @@ func (m *MockCaller) Call(args ...interface{}) (interface{}, error) {
 	return faulty(args...)
 }
 
-// Implement the circuitbreaker.Caller interface.
-func (m *MockCaller) OnOpen() {}
-
-// Implement the circuitbreaker.Caller interface.
-func (m *MockCaller) OnClose() {}
-
 // Mock is a made-up type that serves as an example type someone is
 // trying to define, that has one or more methods which need to be
 // protected with circuit breakers.
