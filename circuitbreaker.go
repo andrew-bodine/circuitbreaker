@@ -1,17 +1,5 @@
 package circuitbreaker
 
-func New(c Caller) CircuitBreaker {
-	cb := &circuitBreaker{
-		state:  make(chan State, 1),
-		caller: make(chan Caller, 1),
-	}
-
-	cb.state <- CLOSED
-	cb.caller <- c
-
-	return cb
-}
-
 type CircuitBreaker interface {
 
 	// State returns the state of a circuit breaker instance.
@@ -25,6 +13,18 @@ type CircuitBreaker interface {
 
 	// Calls the wrapped function and returns the result.
 	Call(...interface{}) interface{}
+}
+
+func New(c Caller) CircuitBreaker {
+	cb := &circuitBreaker{
+		state:  make(chan State, 1),
+		caller: make(chan Caller, 1),
+	}
+
+	cb.state <- CLOSED
+	cb.caller <- c
+
+	return cb
 }
 
 type circuitBreaker struct {
