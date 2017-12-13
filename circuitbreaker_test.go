@@ -67,6 +67,27 @@ var _ = Describe("circuitbreaker", func() {
 				})
 			})
 
+			Context("Calls()", func() {
+				It("always returns zero", func() {
+					Expect(cb.Calls()).To(Equal(0))
+					cb.Call()
+					Expect(cb.Calls()).To(Equal(0))
+					cb.Call()
+					Expect(cb.Calls()).To(Equal(0))
+				})
+
+				Context("with a valid caller that made a call", func() {
+					BeforeEach(func() {
+						cb = New(&MockCaller{})
+						cb.Call()
+					})
+
+					It("returns an int greater than zero", func() {
+						Expect(cb.Calls()).To(Equal(1))
+					})
+				})
+			})
+
 			Context("Open()", func() {
 				Context("when in closed state", func() {
 					It("changes to open state", func() {
@@ -109,6 +130,16 @@ var _ = Describe("circuitbreaker", func() {
 						cb = New(&MockCaller{})
 					})
 
+					It("increments the call count", func() {
+						before := cb.Calls()
+						cb.Call()
+						Expect(cb.Calls()).To(Equal(before + 1))
+					})
+
+					// We know what output to expect because we have
+					// MockCaller, the circuit breaker implementation
+					// shouldn't care about what the output of an
+					// arbitrary operation is, simply return it.
 					It("returns the output", func() {
 						succeeded := false
 
@@ -122,6 +153,22 @@ var _ = Describe("circuitbreaker", func() {
 						}
 
 						Expect(succeeded).To(Equal(true))
+					})
+
+					Context("while in an open state", func() {
+						BeforeEach(func() {
+							cb.Open()
+						})
+
+						It("should not increment the call count", func() {
+							before := cb.Calls()
+							cb.Call()
+							Expect(cb.Calls()).To(Equal(before))
+						})
+
+						It("all calls should return nil", func() {
+							Expect(cb.Call()).To(BeNil())
+						})
 					})
 				})
 			})

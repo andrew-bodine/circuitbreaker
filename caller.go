@@ -5,9 +5,9 @@ package circuitbreaker
 // circuit breaker logic from the actual operation being wrapped.
 type Caller interface {
 
-	// Implement Call so the circuit breaker knows what function
-	// you actually want to call, and so it can return values
-	// properly.
+	// Implement Call so the circuit breaker has an actual operation
+	// to run, this is also how you will receive any return values
+	// from said operation.
 	Call(...interface{}) interface{}
 
 	// Implement OnOpen if you want to be notified when the circuit
