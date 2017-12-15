@@ -22,6 +22,10 @@ type CircuitBreaker interface {
 	// failed since the last successful call.
 	Fails() int
 
+	// Countdown returns whether or not the circuit breaker has started
+	// a countdown to try the wrapped operation again.
+	Countdown() bool
+
 	// Forces the circuit breaker into open state.
 	Open()
 
@@ -31,17 +35,30 @@ type CircuitBreaker interface {
 }
 
 func New(c Caller) CircuitBreaker {
+	o := &Options{
+		MaxFails:	MAXFAILS,
+		Timeout:	TIMEOUT,
+	}
+
+	return NewWithOptions(c, o)
+}
+
+func NewWithOptions(c Caller, o *Options) CircuitBreaker {
 	cb := &circuitBreaker{
-		state:  make(chan State, 1),
-		calls:	make(chan int, 1),
-		fails:	make(chan int, 1),
-		timer:	make(chan *time.Timer, 1),
-		caller: make(chan Caller, 1),
+		maxFails:	o.MaxFails,
+		timeout:	o.Timeout,
+		state:  	make(chan State, 1),
+		calls:		make(chan int, 1),
+		args:		make(chan []interface{}, 1),
+		fails:		make(chan int, 1),
+		timer:		make(chan *time.Timer, 1),
+		caller: 	make(chan Caller, 1),
 	}
 
 	cb.state <- Closed
 
 	cb.calls <- 0
+	cb.args <- nil
 	cb.fails <- 0
 
 	cb.timer <- nil
@@ -52,14 +69,18 @@ func New(c Caller) CircuitBreaker {
 }
 
 type circuitBreaker struct {
-	state	chan State
+	maxFails	int
+	timeout		time.Duration
 
-	calls	chan int
-	fails	chan int
+	state		chan State
 
-	timer	chan *time.Timer
+	calls		chan int
+	args		chan []interface{}
+	fails		chan int
 
-	caller	chan Caller
+	timer		chan *time.Timer
+
+	caller		chan Caller
 }
 
 // Implement the CircuitBreaker interface.
@@ -87,13 +108,25 @@ func (cb *circuitBreaker) Fails() int {
 }
 
 // Implement the CircuitBreaker interface.
+func (cb *circuitBreaker) Countdown() bool {
+	t := <- cb.timer
+	cb.timer <- t
+
+	if t != nil {
+		return true
+	}
+
+	return false
+}
+
+// Implement the CircuitBreaker interface.
 func (cb *circuitBreaker) Open() {
 	s := <-cb.state
 	cb.state <- Open
 
 	if s != Open {
 		<- cb.timer
-		cb.timer <- time.NewTimer(TIMEOUT)
+		cb.timer <- time.AfterFunc(cb.timeout, cb.halfOpen)
 	}
 }
 
@@ -119,7 +152,7 @@ func (cb *circuitBreaker) Call(args ...interface{}) (interface{}, error) {
 		n += 1
 		cb.fails <- n
 
-		if n >= MAXFAILS {
+		if n >= cb.maxFails {
 			cb.Open()
 		}
 	} else {
@@ -128,7 +161,41 @@ func (cb *circuitBreaker) Call(args ...interface{}) (interface{}, error) {
 		// count to zero.
 		<- cb.fails
 		cb.fails <- 0
+
+		// Everytime we have a successful call, save those arguments. This
+		// way we know we have args that should work when it comes time to
+		// try the wrapped operation in a half open state.
+		<- cb.args
+		cb.args <- args
 	}
 
 	return r, err
+}
+
+// halfOpen fires after the necessary waiting timeout after entering open state.
+// This function is where we check to see if the wrapped operation is still
+// failing or not.
+func (cb *circuitBreaker) halfOpen() {
+	<- cb.state
+	cb.state <- HalfOpen
+
+	a := <- cb.args
+	cb.args <- a
+
+	// Try the wrapped operation.
+	_, err := cb.Call(a)
+
+	// Trip the circuit breaker.
+	if err != nil {
+		cb.Open()
+
+		return
+	}
+
+	// Reset fail count.
+	<- cb.fails
+	cb.fails <- 0
+
+	<- cb.state
+	cb.state <- Closed
 }

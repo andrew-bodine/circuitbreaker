@@ -1,6 +1,8 @@
 package circuitbreaker_test
 
 import (
+	"time"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -59,17 +61,82 @@ var _ = Describe("circuitbreaker", func() {
 				})
 			})
 
+			Context("Countdown()", func() {
+				It("returns false", func() {
+					Expect(cb.Countdown()).To(Equal(false))
+				})
+			})
+
 			Context("Open()", func() {
 				Context("when in closed state", func() {
 					It("changes to open state", func() {
 						cb.Open()
 						Expect(cb.State()).To(Equal(Open))
 					})
+
+					It("starts a waiting countdown", func() {
+						cb.Open()
+						Expect(cb.Countdown()).To(Equal(true))
+					})
+
+					Context("after the waiting period is over", func() {
+						var calls int
+
+						BeforeEach(func() {
+							cb = NewWithOptions(
+								&MockCaller{},
+								&Options{
+									MaxFails:	2,
+									Timeout:	time.Millisecond,
+								},
+							)
+
+							for cb.State() != Open {
+								cb.Call()
+								calls = cb.Calls()
+							}
+
+							<- time.NewTimer(time.Millisecond).C
+						})
+
+						It("tries to call the operation", func( ) {
+							for calls >= cb.Calls() {
+								<- time.NewTimer(time.Millisecond).C
+							}
+						})
+
+						It("handles error and success correctly", func() {
+							if cb.Fails() == MAXFAILS {
+
+								// Circuit breaker is still in error path, and
+								// should be reseting state to open to wait.
+								for cb.State() != Open {
+									<- time.NewTimer(time.Millisecond).C
+								}
+
+								Expect(cb.Countdown()).To(Equal(true))
+							} else {
+
+								// Circuit breaker should be closed or
+								// closing anytime now.
+								for cb.State() != Closed {
+									<- time.NewTimer(time.Millisecond).C
+								}
+
+								Expect(cb.Fails()).To(Equal(0))
+							}
+						})
+					})
 				})
 
-				// TODO: Context("when in open state", func() {})
-
-				// TODO: Context("when in a half open state", func() {})
+				Context("when in open state", func() {
+					It("doesn't do anything", func() {
+						cb.Open()
+						cb.Open()
+						Expect(cb.State()).To(Equal(Open))
+						Expect(cb.Countdown()).To(Equal(true))
+					})
+				})
 			})
 
 			Context("Call()", func() {
@@ -167,8 +234,6 @@ var _ = Describe("circuitbreaker", func() {
 							Expect(err).To(Equal(TrippedError))
 						})
 					})
-
-					// TODO: Context("while in a half open state", func() {})
 				})
 			})
 		})
