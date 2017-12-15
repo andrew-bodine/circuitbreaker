@@ -6,7 +6,7 @@ package circuitbreaker
 type Caller interface {
 
 	// Implement Call so the circuit breaker has an actual operation
-	// to run, this is also how you will receive any return values
+	// to run, this is also how you can receive any return values
 	// from said operation.
 	Call(...interface{}) (interface{}, error)
 }

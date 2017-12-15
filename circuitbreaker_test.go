@@ -86,8 +86,8 @@ var _ = Describe("circuitbreaker", func() {
 							cb = NewWithOptions(
 								&MockCaller{},
 								&Options{
-									MaxFails:	2,
-									Timeout:	time.Millisecond,
+									MaxFails: 2,
+									Timeout:  time.Millisecond,
 								},
 							)
 
@@ -96,12 +96,12 @@ var _ = Describe("circuitbreaker", func() {
 								calls = cb.Calls()
 							}
 
-							<- time.NewTimer(time.Millisecond).C
+							<-time.NewTimer(time.Millisecond).C
 						})
 
-						It("tries to call the operation", func( ) {
+						It("tries to call the operation", func() {
 							for calls >= cb.Calls() {
-								<- time.NewTimer(time.Millisecond).C
+								<-time.NewTimer(time.Millisecond).C
 							}
 						})
 
@@ -111,7 +111,7 @@ var _ = Describe("circuitbreaker", func() {
 								// Circuit breaker is still in error path, and
 								// should be reseting state to open to wait.
 								for cb.State() != Open {
-									<- time.NewTimer(time.Millisecond).C
+									<-time.NewTimer(time.Millisecond).C
 								}
 
 								Expect(cb.Countdown()).To(Equal(true))
@@ -120,7 +120,7 @@ var _ = Describe("circuitbreaker", func() {
 								// Circuit breaker should be closed or
 								// closing anytime now.
 								for cb.State() != Closed {
-									<- time.NewTimer(time.Millisecond).C
+									<-time.NewTimer(time.Millisecond).C
 								}
 
 								Expect(cb.Fails()).To(Equal(0))

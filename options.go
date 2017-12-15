@@ -1,10 +1,10 @@
 package circuitbreaker
 
 import (
-    "time"
+	"time"
 )
 
 type Options struct {
-    MaxFails    int
-    Timeout     time.Duration
+	MaxFails int
+	Timeout  time.Duration
 }
