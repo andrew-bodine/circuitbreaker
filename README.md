@@ -5,9 +5,11 @@ A golang circuit breaker package.
 
 The implementation provided by this package follows the well known circuit breaker pattern.
 
-![Circuit Breaker Pattern](https://docs.google.com/drawings/d/e/2PACX-1vTz1nf8TKay0Uc1YkmLpUT70xl4dTkyXjuRs5W_Sq3FoftdSRx1j4_gO32ulxla2vg8efrSOOM3rOE7/pub?w=960&h=720)
+<img alt="Circuit Breaker Pattern"
+     width="600px"
+     src="https://docs.google.com/drawings/d/e/2PACX-1vTz1nf8TKay0Uc1YkmLpUT70xl4dTkyXjuRs5W_Sq3FoftdSRx1j4_gO32ulxla2vg8efrSOOM3rOE7/pub?w=960&h=720"/>
 
-## Basic Example
+## Example
 ```go
 package circuitbreaker_test
 
@@ -52,4 +54,7 @@ var _ = Describe("circuitbreaker", func() {
 })
 ```
 
-> NOTE: More examples are covered in [mock_test.go](./mock_test.go)
+> NOTE: An example of integrating a circuit breaker into a struct is covered in more detail in [mock_test.go](./mock_test.go)
+
+## Documentation
+All documentation can be found [here](https://godoc.org/github.com/andrew-bodine/circuitbreaker)
